@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using JetBrains.Annotations;
 using SDG.Unturned;
 using System;
@@ -8,221 +8,112 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 using UnturnedImages.Module.Workshop;
+using System.Threading.Tasks;
+using System.Reflection;
 
 namespace UnturnedImages.Module.Images
 {
     public static class ImageUtils
     {
         internal static Vector3 ItemIconRotation { get; private set; }
+        public static int PendingItemCount = 0;
 
-        private static string GenerateIdRanges(List<ushort> ids)
+        public static void CaptureVehicleImages(IEnumerable<VehicleAsset> vehicleAssets, Vector3? vehicleAngles = null)
         {
-            ids.Sort();
-
-            var rangesBuilder = new StringBuilder();
-
-            bool startedRange = false;
-            int? prevId = null;
-
-            foreach (var id in ids)
+            var basePath = Path.Combine(ReadWrite.PATH, "Extras", "Vehicles");
+            foreach (var asset in vehicleAssets)
             {
-                if (!prevId.HasValue)
-                {
-                    // First number
-                    rangesBuilder.Append(id);
-                    prevId = id;
-
-                    continue;
-                }
-
-                // General condition
-
-                if (prevId.Value == id - 1)
-                {
-                    // Continue range of numbers
-
-                    if (!startedRange)
-                    {
-                        rangesBuilder.Append('-');
-                        startedRange = true;
-                    }
-                }
-                else
-                {
-                    // Print last num, semi colon, and current num
-                    rangesBuilder.Append(prevId.Value);
-                    rangesBuilder.Append(';');
-                    rangesBuilder.Append(id);
-
-                    startedRange = false;
-                }
-
-                prevId = id;
-            }
-
-            if (startedRange && prevId.HasValue)
-            {
-                rangesBuilder.Append(prevId.Value);
-            }
-
-            return rangesBuilder.ToString();
-        }
-
-        private static void CaptureImages<TAsset>(
-            IEnumerable<TAsset> assets, string outputCategory, Action<TAsset, string> exportAction) where TAsset : Asset
-        {
-            string assetCategory;
-
-            if (typeof(TAsset) == typeof(ItemAsset))
-            {
-                assetCategory = "items";
-            }
-            else if (typeof(TAsset) == typeof(VehicleAsset))
-            {
-                assetCategory = "vehicles";
-            }
-            else
-            {
-                throw new ArgumentException($"Generic type {nameof(TAsset)} is not item or vehicle.");
-            }
-
-            var basePath = Path.Combine(ReadWrite.PATH, "Extras", outputCategory);
-
-            var modAssets = new Dictionary<ulong, List<Guid>>();
-
-            foreach (var asset in assets)
-            {
-                string modPathSection;
-
-                if (WorkshopHelper.IsWorkshop(asset))
-                {
-                    var modId = WorkshopHelper.GetWorkshopId(asset);
-
-                    modPathSection = Path.Combine("Workshop", modId.ToString());
-
-                    if (modAssets.TryGetValue(modId, out var assetList))
-                    {
-                        assetList.Add(asset.GUID);
-                    }
-                    else
-                    {
-                        assetList = new List<Guid>()
-                        {
-                            asset.GUID
-                        };
-
-                        modAssets[modId] = assetList;
-                    }
-                }
-                else
-                {
-                    modPathSection = "Official";
-                }
-
+                string modPathSection = WorkshopHelper.IsWorkshop(asset) 
+                    ? Path.Combine("Workshop", WorkshopHelper.GetWorkshopId(asset).ToString()) 
+                    : "Official";
                 var fullPath = Path.Combine(basePath, modPathSection, asset.GUID.ToString());
-
-                exportAction(asset, fullPath);
+                CustomVehicleTool.QueueVehicleIcon(asset, fullPath, 1024, 1024, vehicleAngles);
             }
-
-            foreach (var pair in modAssets)
-            {
-                var modId = pair.Key;
-                var assetIds = pair.Value;
-
-                var directory = Path.Combine(basePath, "Workshop", modId.ToString());
-                var fullPath = Path.Combine(directory, "config.yaml");
-
-                UnturnedLog.info(fullPath);
-                UnturnedLog.info("WorkshopMod: " + pair.Key);
-
-                if (!Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                using var streamWriter = new StreamWriter(fullPath, false);
-
-                streamWriter.Write($@"
-# Use this in your UnturnedImages/config.yaml file
-- WorkshopId: ""{pair.Key}"" # The ID of the override.
-  Repository: ""https://cdn.jsdelivr.net/gh/SilKsPlugins/UnturnedIcons@images/modded/{modId}/{assetCategory}/{{{(assetCategory == "items" ? "ItemId" : "VehicleId")}}}.png"" # The repository of the override.
-                ".Trim());
-            }
-        }
-
-        public static void CaptureVehicleImages(IEnumerable<VehicleAsset> vehicleAssets,
-            Vector3? vehicleAngles = null)
-        {
-            const string category = "Vehicles";
-
-            CaptureImages(vehicleAssets, category, (asset, path) =>
-            {
-                CustomVehicleTool.QueueVehicleIcon(asset, path, 1024, 1024, vehicleAngles);
-            });
         }
 
         public static void CaptureItemImages(IEnumerable<ItemAsset> itemAssets, Vector3? itemIconRotation = null)
         {
-            const string category = "Items";
-            
-            // Update item icon rotation
             ItemIconRotation = itemIconRotation ?? Vector3.zero;
+            var basePath = Path.Combine(ReadWrite.PATH, "Extras", "Items");
 
-            CaptureImages(itemAssets, category, (asset, path) =>
+            foreach (var asset in itemAssets)
             {
-                var extraItemIconInfo = new ExtraItemIconInfo
-                {
-                    extraPath = path
-                };
+                string modPathSection = WorkshopHelper.IsWorkshop(asset) 
+                    ? Path.Combine("Workshop", WorkshopHelper.GetWorkshopId(asset).ToString()) 
+                    : "Official";
+                var path = Path.Combine(basePath, modPathSection, asset.GUID.ToString());
+                string finalPath = path + ".png";
 
+                // Incremental processing: skip if already exists
+                if (File.Exists(finalPath)) continue;
+
+                PendingItemCount++;
                 ItemTool.getIcon(asset.id, 0, 100, asset.getState(), asset, null, string.Empty,
                     string.Empty, asset.size_x * 512, asset.size_y * 512, false, true,
-                    texture =>
+                    (handle, texture) =>
                     {
-                        extraItemIconInfo.onItemIconReady(texture);
+                        try {
+                            if (texture != null) {
+                                byte[] pngBytes = texture.EncodeToPNG();
+                                UnityEngine.Object.Destroy(texture);
+                                Task.Run(() => {
+                                    try {
+                                        string finalPath = path + ".png";
+                                        string dir = Path.GetDirectoryName(finalPath);
+                                        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                                        File.WriteAllBytes(finalPath, pngBytes);
+                                    } catch { }
+                                });
+                            }
+                        } finally {
+                            PendingItemCount--;
+                        }
                     });
-
-                IconUtils.extraIcons.Add(extraItemIconInfo);
-            });
+            }
         }
 
         public static void CaptureAllVehicleImages(Vector3? vehicleAngles = null)
         {
-            List<VehicleAsset> vehicleAssets = new List<VehicleAsset>();
-            Assets.find(vehicleAssets);
-
-            CaptureVehicleImages(vehicleAssets, vehicleAngles);
+            List<VehicleAsset> assets = new List<VehicleAsset>();
+            Assets.find(assets);
+            CaptureVehicleImages(assets, vehicleAngles);
         }
 
         public static void CaptureAllItemImages(Vector3? itemAngles = null)
         {
-            List<ItemAsset> itemAssets = new List<ItemAsset>();
-            Assets.find(itemAssets);
-
-            CaptureItemImages(itemAssets, itemAngles);
+            List<ItemAsset> assets = new List<ItemAsset>();
+            Assets.find(assets);
+            CaptureItemImages(assets, itemAngles);
         }
 
         public static void CaptureModItemImages(ulong mod, Vector3? itemAngles = null)
         {
-            List<ItemAsset> itemAssets = new List<ItemAsset>();
-            Assets.find(itemAssets);
-
-            itemAssets = itemAssets
-                .Where(x => WorkshopHelper.GetWorkshopIdSafe(x) == mod).ToList();
-
-            CaptureItemImages(itemAssets, itemAngles);
+            List<ItemAsset> assets = new List<ItemAsset>();
+            Assets.find(assets);
+            var modAssets = assets.Where(x => WorkshopHelper.GetWorkshopIdSafe(x) == mod).ToList();
+            CaptureItemImages(modAssets, itemAngles);
         }
 
         public static void CaptureModVehicleImages(ulong mod, Vector3? vehicleAngles = null)
         {
-            List<VehicleAsset> vehicleAssets = new List<VehicleAsset>();
-            Assets.find(vehicleAssets);
+            List<VehicleAsset> assets = new List<VehicleAsset>();
+            Assets.find(assets);
+            var modAssets = assets.Where(x => WorkshopHelper.GetWorkshopIdSafe(x) == mod).ToList();
+            CaptureVehicleImages(modAssets, vehicleAngles);
+        }
 
-            vehicleAssets = vehicleAssets
-                .Where(x => WorkshopHelper.GetWorkshopIdSafe(x) == mod).ToList();
-
-
-            CaptureVehicleImages(vehicleAssets, vehicleAngles);
+        private static FieldInfo? _itemToolIconsField;
+        public static int GetInternalItemQueueCount()
+        {
+            if (_itemToolIconsField == null)
+                _itemToolIconsField = typeof(ItemTool).GetField("icons", BindingFlags.NonPublic | BindingFlags.Static);
+            
+            var queue = _itemToolIconsField?.GetValue(null) as System.Collections.IEnumerable;
+            if (queue == null) return 0;
+            
+            int count = 0;
+            foreach (var item in queue) count++;
+            return count;
         }
 
         [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
@@ -230,42 +121,53 @@ namespace UnturnedImages.Module.Images
         private static class UnturnedPatches
         {
             private static Vector3 _iconPosition;
-            private static Quaternion _iconRotation;
+            private static bool _isInsideTurbo = false;
 
             [HarmonyPatch(typeof(ItemTool), "captureIcon")]
             [HarmonyPrefix]
             public static void ItemToolCaptureIconPre(Transform model, Transform icon, ushort id, int width, int height, ref float orthoSize)
             {
-                // Preserve position and rotation
                 _iconPosition = icon.position;
-                _iconRotation = icon.rotation;
+                icon.RotateAround(model.position, icon.right, ItemIconRotation.x);
+                icon.RotateAround(model.position, icon.up, ItemIconRotation.y);
+                icon.RotateAround(model.position, icon.forward, ItemIconRotation.z);
 
-                var up = icon.up;
-                var forward = icon.forward;
-                var right = icon.right;
-
-                // Adjust item icon rotation
-                icon.RotateAround(model.position, right, ItemIconRotation.x);
-                icon.RotateAround(model.position, up, ItemIconRotation.y);
-                icon.RotateAround(model.position, forward, ItemIconRotation.z);
-
-
-                // Fix ortho size
-                var itemAsset = Assets.find(EAssetType.ITEM, id);
-
-                orthoSize = CustomImageTool.CalculateOrthographicSize(itemAsset, model.gameObject, icon, width, height, out var position);
-
-                // Adjust item icon position
-                icon.position = position;
+                var itemAsset = Assets.find(EAssetType.ITEM, id) as ItemAsset;
+                if (itemAsset != null)
+                {
+                    orthoSize = CustomImageTool.CalculateOrthographicSize(itemAsset, model.gameObject, icon, width, height, out var position);
+                    icon.position = position;
+                }
             }
 
             [HarmonyPatch(typeof(ItemTool), "captureIcon")]
             [HarmonyPostfix]
             public static void ItemToolCaptureIconPost(Transform icon)
             {
-                // Restore position and rotation
                 icon.position = _iconPosition;
-                icon.rotation = _iconRotation;
+            }
+
+            [HarmonyPatch(typeof(ItemTool), "Update")]
+            [HarmonyPrefix]
+            public static bool ItemToolUpdateTurbo(ItemTool __instance)
+            {
+                if (!AutoExporter.IsExporting) return true;
+                if (_isInsideTurbo) return true;
+                return false; 
+            }
+        }
+        
+        private static FieldInfo? _isInsideTurboField;
+        public static void ForceDrive(ItemTool instance, MethodInfo updateMethod)
+        {
+            if (_isInsideTurboField == null)
+                _isInsideTurboField = typeof(UnturnedPatches).GetField("_isInsideTurbo", BindingFlags.NonPublic | BindingFlags.Static);
+
+            _isInsideTurboField?.SetValue(null, true);
+            try {
+                updateMethod.Invoke(instance, null);
+            } finally {
+                _isInsideTurboField?.SetValue(null, false);
             }
         }
     }

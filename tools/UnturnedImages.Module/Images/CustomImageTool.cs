@@ -79,7 +79,7 @@ namespace UnturnedImages.Module.Images
             RenderSettings.ambientGroundColor = Color.white;
 
             _tool._lightComponent.enabled = true;
-            GL.Clear(true, true, ColorEx.BlackZeroAlpha);
+            GL.Clear(true, true, new Color(0, 0, 0, 0));
             _tool._cameraComponent.cullingMask = 67313664;
             _tool._cameraComponent.farClipPlane = 128f;
             _tool._cameraComponent.clearFlags = CameraClearFlags.Nothing;
@@ -158,9 +158,13 @@ namespace UnturnedImages.Module.Images
             }
 
             var extents = bounds.extents;
-            if (extents.ContainsInfinity() || extents.ContainsNaN() || extents.IsNearlyZero(0.001f))
+            bool isInvalid = float.IsInfinity(extents.x) || float.IsInfinity(extents.y) || float.IsInfinity(extents.z) ||
+                            float.IsNaN(extents.x) || float.IsNaN(extents.y) || float.IsNaN(extents.z) ||
+                            (Mathf.Abs(extents.x) < 0.001f && Mathf.Abs(extents.y) < 0.001f && Mathf.Abs(extents.z) < 0.001f);
+
+            if (isInvalid)
             {
-                Assets.reportError(assetContext, "has invalid icon world extent ({0})", extents);
+                UnturnedLog.warn($"Asset {assetContext.GUID} has invalid icon world extent ({extents})");
                 return 1f;
             }
 
@@ -174,9 +178,13 @@ namespace UnturnedImages.Module.Images
             bounds2.Encapsulate(cameraTransform.InverseTransformVector(new Vector3(extents.x, -extents.y, -extents.z)));
             var extents2 = bounds2.extents;
 
-            if (extents2.ContainsInfinity() || extents2.ContainsNaN() || extents2.IsNearlyZero(0.001f))
+            bool isInvalidLocal = float.IsInfinity(extents2.x) || float.IsInfinity(extents2.y) || float.IsInfinity(extents2.z) ||
+                                 float.IsNaN(extents2.x) || float.IsNaN(extents2.y) || float.IsNaN(extents2.z) ||
+                                 (Mathf.Abs(extents2.x) < 0.001f && Mathf.Abs(extents2.y) < 0.001f && Mathf.Abs(extents2.z) < 0.001f);
+
+            if (isInvalidLocal)
             {
-                Assets.reportError(assetContext, "has invalid icon local extent ({0})", extents);
+                UnturnedLog.warn($"Asset {assetContext.GUID} has invalid icon local extent ({extents})");
                 return 1f;
             }
 

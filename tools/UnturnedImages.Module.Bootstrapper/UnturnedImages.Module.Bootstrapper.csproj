@@ -12,8 +12,19 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="dnlib" Version="3.3.4" />
-    <PackageReference Include="RestoreMonarchy.UnturnedRedist" Version="3.24.4" />
+	        <PackageReference Include="dnlib" Version="3.3.4" />
+	        <Reference Include="Assembly-CSharp">
+	          <HintPath>D:\Games\SteamLibrary\steamapps\common\Unturned\Unturned_Data\Managed\Assembly-CSharp.dll</HintPath>
+	          <Private>false</Private>
+	        </Reference>
+	        <Reference Include="UnityEngine">
+	          <HintPath>D:\Games\SteamLibrary\steamapps\common\Unturned\Unturned_Data\Managed\UnityEngine.dll</HintPath>
+	          <Private>false</Private>
+	        </Reference>
+	        <Reference Include="UnityEngine.CoreModule">
+	          <HintPath>D:\Games\SteamLibrary\steamapps\common\Unturned\Unturned_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+	          <Private>false</Private>
+	        </Reference>
 	</ItemGroup>
 
 </Project>
