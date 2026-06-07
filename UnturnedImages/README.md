@@ -1,52 +1,25 @@
-# Unturned Images Plugin
-An OpenMod plugin for Unturned which adds a repository of images available to plugins for usage in UIs.
+# Unturned Images 客户端模组
 
-## Purpose
+这是专门为 Unturned 设计的客户端模组，旨在为客户端开发者提供一套简便的图像资源访问服务，极大简化了在游戏客户端 UI 开发过程中获取资产图片的过程。
 
-This plugin contains services which other plugins can use to get image URLs for in-game assets. For more information, see the [Usage section](#Usage).
+## 编译与构建
+本项目使用 .NET 进行开发。在本地进行编译的步骤如下：
 
-These image URLs can be used in different applications, but mainly in-game UIs.
+1. **环境准备**：确保已安装与 Unturned 客户端兼容的 .NET SDK。
+2. **克隆仓库**：将代码克隆到本地。
+3. **编译项目**：在项目根目录运行编译命令以生成模组程序集 (DLL)：
+   ```bash
+   dotnet build --configuration Release
+   ```
+4. **获取产物**：编译完成后，产出的文件位于 `bin/Release/` 目录下。
 
-## Configuration
+## 客户端部署与使用
+完成编译后，请按照以下步骤将其部署到你的 Unturned 客户端中：
 
-Default configuration (contains comment-based documentation):
+### 1. 部署模组
+将编译生成的模组 DLL 文件及相关资源文件放入 Unturned 客户端的 `Modules` 文件夹中。确保模组的配置文件 `config.yaml` 也被放置在正确的模组配置目录下。
 
-```yaml
-# Default repositories for different in-game asset categories.
-# If no override specifies a different repository, it will attempt to use the default repository.
-DefaultRepositories:
-  # The default repository for item images.
-  Items: "https://cdn.jsdelivr.net/gh/SilKsPlugins/UnturnedIcons@images/vanilla/items/{ItemId}.png"
-
-
-# Repository overrides for item images. Simply specify an ID, or list of IDs and their repository.
-# Remove the # before lines to uncomment them and have it work with the config.
-# Priority is based on which line is first. For example, if all lines below were uncommented,
-# the image URL for the item with an ID of 46001 would be https://cdn.jsdelivr.net/gh/SilKsPlugins/UnturnedIcons@images/modded/other2/items/{ItemId}.png
-ItemOverrides:
-#- Id: 46000 # The ID of the override.
-#  Repository: "https://cdn.jsdelivr.net/gh/SilKsPlugins/UnturnedIcons@images/modded/other/items/{ItemId}.png" # The repository of the override.
-#- Id: "46001-47000" # A range of IDs can be specified as well. You can specify multiple IDs using ranges. and multiple ranges by separating them with commas (',') or semi-colons (';').
-#  Repository: "https://cdn.jsdelivr.net/gh/SilKsPlugins/UnturnedIcons@images/modded/other2/items/{ItemId}.png"
-#- Id: "46001-47000;48000-49000;50023" # A range of IDs can be specified as well. You can specify multiple ranges/IDs by separating them with commas (',') or semi-colons (';').
-#  Repository: "https://cdn.jsdelivr.net/gh/SilKsPlugins/UnturnedIcons@images/modded/other3/items/{ItemId}.png"
-```
-
-## Usage
-
-Developers can include this plugin library in their plugins simply by adding the package to their project references and ensuring the plugin is installed on their server endpoints.
-
-Install via Microsoft Visual Studio's Package Manager Console:
-```
-Install-Package SilK.UnturnedImages
-```
-
-Install via the .NET CLI:
-```
-dotnet add package SilK.UnturnedImages
-```
-
-After the plugin's library has been added to your project, you can retrieve one of the following services using dependency-injection:
-
-- `IItemImageDirectoryAsync` - An asynchronous item image directory.
-- `IItemImageDirectorySync` - A synchronous item image directory.
+### 2. 配置与使用
+- **配置文件**：修改 `config.yaml` 以定义你的图片资产映射规则。你可以针对不同的资产 ID 或范围设置对应的资源地址。
+- **开发集成**：在你的其他客户端模组项目中，引用本项目编译出的程序集。模组加载后，将注册相应的图像目录服务。
+- **API 调用**：在你的模组代码中，获取 `IItemImageDirectoryAsync` 或 `IItemImageDirectorySync` 服务，即可直接根据资产 ID 获取对应的图片路径，并在客户端 UI 中加载使用。
