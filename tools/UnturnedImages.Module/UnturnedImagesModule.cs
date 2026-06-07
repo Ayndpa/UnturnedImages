@@ -9,8 +9,6 @@ namespace UnturnedImages.Module
 {
     public class UnturnedImagesModule : MonoBehaviour, IModuleNexus
     {
-        private static CommandLineFlag clAutoExport = new CommandLineFlag(false, "-AutoExport");
-
         private readonly HarmonyPatches _harmonyPatches;
         private readonly UIManager _uiManager;
 
@@ -38,10 +36,7 @@ namespace UnturnedImages.Module
             CustomVehicleTool.Load();
             _uiManager.Load();
 
-            if (clAutoExport)
-            {
-                GameObject.AddComponent<AutoExporter>();
-            }
+            GameObject.AddComponent<AutoExporter>();
         }
 
         public void shutdown()
