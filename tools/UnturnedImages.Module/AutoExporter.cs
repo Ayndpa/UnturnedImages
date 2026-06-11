@@ -5,6 +5,7 @@ using System.Collections;
 using System;
 using System.Reflection;
 using System.Diagnostics;
+using System.IO;
 
 namespace UnturnedImages.Module
 {
@@ -22,40 +23,78 @@ namespace UnturnedImages.Module
 
         private IEnumerator Start()
         {
+            IEnumerator routine = StartInternal();
+            Exception? error = null;
+            while (true)
+            {
+                bool hasNext;
+                try
+                {
+                    hasNext = routine.MoveNext();
+                }
+                catch (Exception ex)
+                {
+                    error = ex;
+                    break;
+                }
+
+                if (!hasNext) break;
+                yield return routine.Current;
+            }
+
+            if (error != null)
+            {
+                UnturnedLog.error("Critical error during auto-export: " + error);
+                try {
+                    string extrasPath = Path.Combine(ReadWrite.PATH, "Extras");
+                    if (!Directory.Exists(extrasPath)) Directory.CreateDirectory(extrasPath);
+                    File.WriteAllText(Path.Combine(extrasPath, "export_error.log"), error.ToString());
+                } catch (Exception fileEx) {
+                    UnturnedLog.error("Failed to write error log: " + fileEx);
+                }
+
+                if (_statusLabel != null) {
+                    _statusLabel.Text = "导出发生严重错误！正在强制退出游戏...\nCritical error occurred! Force quitting...";
+                    _statusLabel.TextColor = Color.red;
+                }
+                yield return new WaitForSeconds(5f);
+            }
+
+            UnturnedLog.info("AutoExporter finishing, quitting Application.");
+            Application.Quit();
+        }
+
+        private IEnumerator StartInternal()
+        {
             UnturnedLog.info("AutoExporter started, waiting for menu...");
             while (MenuUI.window == null || MenuUI.container == null) yield return null;
+            
+            MenuUI.container.IsVisible = false;
+            var glazier = Glazier.Get();
+            var background = glazier.CreateBox();
+            background.SizeScale_X = 1f; background.SizeScale_Y = 1f;
+            MenuUI.window.AddChild(background);
 
-            try 
-            {
-                MenuUI.container.IsVisible = false;
-                var glazier = Glazier.Get();
-                var background = glazier.CreateBox();
-                background.SizeScale_X = 1f; background.SizeScale_Y = 1f;
-                MenuUI.window.AddChild(background);
+            var titleLabel = glazier.CreateLabel();
+            titleLabel.SizeScale_X = 1f; titleLabel.SizeOffset_Y = 100;
+            titleLabel.PositionScale_Y = 0.25f;
+            titleLabel.Text = "正在自动导出游戏素材，请勿进行游戏操作...\nAutomated Exporting Assets. DO NOT PLAY...";
+            titleLabel.FontSize = ESleekFontSize.Title;
+            titleLabel.TextColor = Color.yellow;
+            background.AddChild(titleLabel);
 
-                var titleLabel = glazier.CreateLabel();
-                titleLabel.SizeScale_X = 1f; titleLabel.SizeOffset_Y = 100;
-                titleLabel.PositionScale_Y = 0.25f;
-                titleLabel.Text = "正在自动导出游戏素材，请勿进行游戏操作...\nAutomated Exporting Assets. DO NOT PLAY...";
-                titleLabel.FontSize = ESleekFontSize.Title;
-                titleLabel.TextColor = Color.yellow;
-                background.AddChild(titleLabel);
+            _statusLabel = glazier.CreateLabel();
+            _statusLabel.SizeScale_X = 1f; _statusLabel.SizeOffset_Y = 100;
+            _statusLabel.PositionScale_Y = 0.45f;
+            _statusLabel.FontSize = ESleekFontSize.Large;
+            background.AddChild(_statusLabel);
 
-                _statusLabel = glazier.CreateLabel();
-                _statusLabel.SizeScale_X = 1f; _statusLabel.SizeOffset_Y = 100;
-                _statusLabel.PositionScale_Y = 0.45f;
-                _statusLabel.FontSize = ESleekFontSize.Large;
-                background.AddChild(_statusLabel);
-
-                _etaLabel = glazier.CreateLabel();
-                _etaLabel.SizeScale_X = 1f; _etaLabel.SizeOffset_Y = 100;
-                _etaLabel.PositionScale_Y = 0.6f;
-                _etaLabel.FontSize = ESleekFontSize.Large;
-                _etaLabel.TextColor = Color.cyan;
-                background.AddChild(_etaLabel);
-            } catch (Exception ex) {
-                UnturnedLog.error("Error creating UI: " + ex);
-            }
+            _etaLabel = glazier.CreateLabel();
+            _etaLabel.SizeScale_X = 1f; _etaLabel.SizeOffset_Y = 100;
+            _etaLabel.PositionScale_Y = 0.6f;
+            _etaLabel.FontSize = ESleekFontSize.Large;
+            _etaLabel.TextColor = Color.cyan;
+            background.AddChild(_etaLabel);
 
             Application.runInBackground = true;
             QualitySettings.vSyncCount = 0;
@@ -127,7 +166,6 @@ namespace UnturnedImages.Module
             if (_etaLabel != null) _etaLabel.IsVisible = false;
             
             yield return new WaitForSeconds(3f);
-            Application.Quit();
         }
     }
 }

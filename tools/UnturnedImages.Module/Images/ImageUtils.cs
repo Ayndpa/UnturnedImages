@@ -47,9 +47,12 @@ namespace UnturnedImages.Module.Images
                 // Incremental processing: skip if already exists
                 if (File.Exists(finalPath)) continue;
 
+                int width = Math.Min(asset.size_x * 512, 2048);
+                int height = Math.Min(asset.size_y * 512, 2048);
+
                 PendingItemCount++;
                 ItemTool.getIcon(asset.id, 0, 100, asset.getState(), asset, null, string.Empty,
-                    string.Empty, asset.size_x * 512, asset.size_y * 512, false, true,
+                    string.Empty, width, height, false, true,
                     (handle, texture) =>
                     {
                         try {
